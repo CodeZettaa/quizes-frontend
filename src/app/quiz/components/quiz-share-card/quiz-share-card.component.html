@@ -1,0 +1,85 @@
+<div class="share-card">
+  <div class="share-header">
+    <h3 class="share-title">Share Your Achievement</h3>
+  </div>
+
+  <div class="share-preview">
+    <p class="preview-text">{{ getShareMessage() }}</p>
+  </div>
+
+  @if (error()) {
+    <div class="error-banner">
+      <span class="error-icon">⚠️</span>
+      <span class="error-text">{{ error() }}</span>
+      <button class="retry-btn" (click)="retry()">Retry</button>
+    </div>
+  }
+
+  <div class="share-actions">
+    <button
+      class="btn btn-primary btn-share"
+      (click)="handleShareToLinkedIn()"
+      [disabled]="isLoadingLink() || isPosting()">
+      @if (isLoadingLink()) {
+        <span class="spinner"></span>
+        <span>Generating link...</span>
+      } @else {
+        <svg class="btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        </svg>
+        <span>Share on LinkedIn</span>
+      }
+    </button>
+
+    @if (showAutoPostOption()) {
+      <button
+        class="btn btn-secondary btn-post"
+        (click)="handlePostToLinkedIn()"
+        [disabled]="isLoadingLink() || isPosting()">
+        @if (isPosting()) {
+          <span class="spinner"></span>
+          Posting...
+        } @else {
+          <span class="btn-icon">📤</span>
+          Post directly to LinkedIn
+        }
+      </button>
+    }
+  </div>
+
+  @if (shareLink()) {
+    <div class="link-section">
+      <div class="link-input-group">
+        <input
+          type="text"
+          [value]="shareLink()!"
+          readonly
+          class="link-input"
+          #linkInput>
+        <button
+          class="btn btn-copy"
+          (click)="copyLink()"
+          [class.copied]="linkCopied()">
+          @if (linkCopied()) {
+            ✓ Copied
+          } @else {
+            Copy link
+          }
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (postedUrl()) {
+    <div class="success-banner">
+      <span class="success-icon">✅</span>
+      <span class="success-text">Posted successfully!</span>
+      @if (postedUrl()) {
+        <a [href]="postedUrl()!" target="_blank" rel="noopener noreferrer" class="view-post-link">
+          View post →
+        </a>
+      }
+    </div>
+  }
+</div>
+
