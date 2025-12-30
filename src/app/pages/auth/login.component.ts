@@ -16,7 +16,8 @@ import { environment } from "../../../environments/environment";
 
         <!-- Social Login Buttons -->
         <div class="social-buttons">
-          <button class="btn-social btn-google" (click)="loginWithGoogle()">
+          <!-- Google login commented out -->
+          <!-- <button class="btn-social btn-google" (click)="loginWithGoogle()">
             <svg class="social-icon" viewBox="0 0 24 24" width="20" height="20">
               <path
                 fill="#4285F4"
@@ -36,7 +37,7 @@ import { environment } from "../../../environments/environment";
               />
             </svg>
             Continue with Google
-          </button>
+          </button> -->
           <button class="btn-social btn-linkedin" (click)="loginWithLinkedIn()">
             <svg
               class="social-icon"
@@ -137,10 +138,11 @@ import { environment } from "../../../environments/environment";
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       }
 
-      .btn-google:hover {
+      /* Google button styles commented out */
+      /* .btn-google:hover {
         border-color: #4285f4;
         background: #f8f9ff;
-      }
+      } */
 
       .btn-linkedin:hover {
         border-color: #0077b5;
@@ -273,9 +275,10 @@ export class LoginComponent implements OnInit {
     }
   }
 
-  loginWithGoogle() {
-    window.location.href = `${environment.apiBaseUrl}/api/auth/google`;
-  }
+  // Google login commented out
+  // loginWithGoogle() {
+  //   window.location.href = `${environment.apiBaseUrl}/api/auth/google`;
+  // }
 
   loginWithLinkedIn() {
     window.location.href = `${environment.apiBaseUrl}/api/auth/linkedin`;

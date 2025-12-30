@@ -30,15 +30,26 @@ export class QuizShareCardComponent {
     const percentage = Math.round((s.correctAnswersCount / s.totalQuestions) * 100);
     const subject = s.subject || 'Quiz';
     const level = s.level ? ` (${s.level.charAt(0).toUpperCase() + s.level.slice(1)})` : '';
-    return `I scored ${s.correctAnswersCount}/${s.totalQuestions} in ${subject}${level} on CodeZetta Quiz!\n+${s.pointsEarned} points 🏆`;
+    return `I scored ${s.correctAnswersCount}/${s.totalQuestions} (${percentage}%) in ${subject}${level} on CodeZetta Quiz.\n+${s.pointsEarned} points earned.\n#CodeZetta #Quiz #Learning`;
+  }
+
+  getShareTitle(): string {
+    const s = this.summary();
+    const subject = s.subject || 'Quiz';
+    const level = s.level ? ` ${s.level.charAt(0).toUpperCase() + s.level.slice(1)}` : '';
+    return `${subject}${level} Quiz Result`;
   }
 
   async handleShareToLinkedIn(): Promise<void> {
     const existingLink = this.shareLink();
     const shareMessage = this.getShareMessage();
+    const shareTitle = this.getShareTitle();
     
     if (existingLink) {
-      this.shareService.shareToLinkedIn(existingLink, shareMessage);
+      this.shareService.shareToLinkedIn(existingLink, {
+        title: shareTitle,
+        summary: shareMessage,
+      });
       return;
     }
 
@@ -49,7 +60,10 @@ export class QuizShareCardComponent {
       const response = await firstValueFrom(this.shareService.createShareLink(this.attemptId()));
       if (response?.url) {
         this.shareLink.set(response.url);
-        this.shareService.shareToLinkedIn(response.url, shareMessage);
+        this.shareService.shareToLinkedIn(response.url, {
+          title: shareTitle,
+          summary: shareMessage,
+        });
       } else {
         this.error.set("Couldn't generate a share link. Please try again.");
       }
@@ -101,4 +115,3 @@ export class QuizShareCardComponent {
     this.shareLink.set(null);
   }
 }
-

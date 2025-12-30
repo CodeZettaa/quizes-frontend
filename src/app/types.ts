@@ -69,7 +69,9 @@ export interface Quiz {
   level: 'beginner' | 'middle' | 'intermediate';
   subject: Subject;
   questions: Question[];
-  hasTaken?: boolean; // Only present when user is authenticated
+  taken?: boolean;
+  attemptId?: string;
+  timerMinutes?: number;
   createdAt?: string;
 }
 
@@ -87,6 +89,36 @@ export interface QuizAttempt {
   pointsEarned: number;
   startedAt: string;
   finishedAt: string;
+}
+
+export interface AttemptSummary {
+  attemptId: string;
+  quizId: string;
+  quizTitle: string;
+  subject: Subject | null;
+  level: string | null;
+  score: number;
+  totalQuestions: number;
+  correctAnswersCount: number;
+  pointsEarned: number;
+  finishedAt: string;
+}
+
+export interface AttemptDetails extends AttemptSummary {
+  questions?: Array<{
+    id: string;
+    text: string;
+    type: string;
+    options: Array<{
+      id: string;
+      text: string;
+      isCorrect: boolean;
+    }>;
+    userAnswer: {
+      selectedOptionId: string;
+      isCorrect: boolean;
+    } | null;
+  }>;
 }
 
 export interface QuizAttemptDetail extends QuizAttempt {
@@ -138,7 +170,7 @@ export interface WrongAnswerFeedback {
 }
 
 export interface SubmitQuizResponse {
-  attemptId?: string; // Optional: backend may not return this yet
+  attemptId: string;
   score: number;
   totalQuestions: number;
   correctAnswersCount: number;

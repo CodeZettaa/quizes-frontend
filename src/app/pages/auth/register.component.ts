@@ -16,7 +16,8 @@ import { environment } from "../../../environments/environment";
 
         <!-- Social Login Buttons -->
         <div class="social-buttons">
-          <button class="btn-social btn-google" (click)="registerWithGoogle()">
+          <!-- Google login commented out -->
+          <!-- <button class="btn-social btn-google" (click)="registerWithGoogle()">
             <svg class="social-icon" viewBox="0 0 24 24" width="20" height="20">
               <path
                 fill="#4285F4"
@@ -36,7 +37,7 @@ import { environment } from "../../../environments/environment";
               />
             </svg>
             Continue with Google
-          </button>
+          </button> -->
           <button
             class="btn-social btn-linkedin"
             (click)="registerWithLinkedIn()"
@@ -148,10 +149,11 @@ import { environment } from "../../../environments/environment";
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       }
 
-      .btn-google:hover {
+      /* Google button styles commented out */
+      /* .btn-google:hover {
         border-color: #4285f4;
         background: #f8f9ff;
-      }
+      } */
 
       .btn-linkedin:hover {
         border-color: #0077b5;
@@ -272,9 +274,10 @@ export class RegisterComponent {
   password = "";
   error = signal("");
 
-  registerWithGoogle() {
-    window.location.href = `${environment.apiBaseUrl}/api/auth/google`;
-  }
+  // Google login commented out
+  // registerWithGoogle() {
+  //   window.location.href = `${environment.apiBaseUrl}/api/auth/google`;
+  // }
 
   registerWithLinkedIn() {
     window.location.href = `${environment.apiBaseUrl}/api/auth/linkedin`;
@@ -283,8 +286,13 @@ export class RegisterComponent {
   submit() {
     this.error.set("");
     this.auth.register(this.name, this.email, this.password).subscribe({
-      next: () => {
-        this.router.navigate(["/dashboard"]);
+      next: (user) => {
+        // Check if user has selected subjects
+        if (!user.selectedSubjects || user.selectedSubjects.length === 0) {
+          this.router.navigate(["/auth/topics"]);
+        } else {
+          this.router.navigate(["/dashboard"]);
+        }
       },
       error: (err) => {
         this.error.set(err.error?.message || "Registration failed");

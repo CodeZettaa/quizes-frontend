@@ -87,7 +87,6 @@ import { QuizAttemptDetail } from '../../types';
 
         <div style="display: flex; gap: 1rem; margin-top: 2rem;">
           <a routerLink="/profile" class="btn secondary">← Back to Profile</a>
-          <a [routerLink]="['/quiz', attempt()!.quiz.id]" class="btn">🔄 Retake Quiz</a>
         </div>
       }
     </div>
@@ -329,4 +328,3 @@ export class QuizReviewComponent implements OnInit {
     return Math.round((att.correctAnswersCount / att.totalQuestions) * 100);
   }
 }
-

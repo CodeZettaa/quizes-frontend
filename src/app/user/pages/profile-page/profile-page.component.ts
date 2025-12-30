@@ -1,9 +1,12 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../services/notification.service';
-import { User, UserStats } from '../../../types';
+import { AttemptService } from '../../../services/attempt.service';
+import { SubjectsService } from '../../../services/subjects.service';
+import { AttemptSummary, Subject, User, UserStats } from '../../../types';
 import { UserSummaryCardComponent } from '../../components/user-summary-card/user-summary-card.component';
 import { UserStatsCardComponent } from '../../components/user-stats-card/user-stats-card.component';
 import { AvatarUploadComponent } from '../../components/avatar-upload/avatar-upload.component';
@@ -14,6 +17,7 @@ import { AvatarUploadComponent } from '../../components/avatar-upload/avatar-upl
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     UserSummaryCardComponent,
     UserStatsCardComponent,
     AvatarUploadComponent,
@@ -39,6 +43,85 @@ import { AvatarUploadComponent } from '../../components/avatar-upload/avatar-upl
         @if (stats()) {
           <app-user-stats-card [stats]="stats()!" />
         }
+
+        <div class="card attempts-card">
+          <div class="attempts-header">
+            <div>
+              <h3>📘 My Quiz History</h3>
+              <p class="attempts-subtitle">Track your progress and review results.</p>
+            </div>
+            <div class="attempts-filters">
+              <select class="input" [(ngModel)]="selectedSubjectId" (change)="applyFilters()">
+                <option value="">All Subjects</option>
+                @for (subject of subjects(); track subject.id) {
+                  <option [value]="subject.id">{{ subject.name }}</option>
+                }
+              </select>
+              <select class="input" [(ngModel)]="selectedLevel" (change)="applyFilters()">
+                <option value="">All Levels</option>
+                <option value="beginner">Beginner</option>
+                <option value="middle">Middle</option>
+                <option value="intermediate">Intermediate</option>
+              </select>
+            </div>
+          </div>
+
+          @if (attemptsLoading()) {
+            <div class="attempts-loading">
+              <div class="loading"></div>
+              <p>Loading attempts...</p>
+            </div>
+          } @else if (attemptsError()) {
+            <div class="attempts-error">
+              <p>{{ attemptsError() }}</p>
+              <button class="btn secondary" (click)="loadAttempts()">Retry</button>
+            </div>
+          } @else if (attempts().length === 0) {
+            <div class="attempts-empty">
+              <div class="empty-emoji">🧩</div>
+              <p>No quizzes completed yet.</p>
+              <a class="btn" routerLink="/dashboard">Start a Quiz</a>
+            </div>
+          } @else {
+            <div class="attempts-grid">
+              @for (attempt of attempts(); track attempt.attemptId) {
+                <div class="attempt-item">
+                  <div class="attempt-title">
+                    <div>
+                      <h4>{{ attempt.quizTitle }}</h4>
+                      <p>
+                        {{ attempt.subject?.name || 'General' }}
+                        • {{ attempt.level | titlecase }}
+                      </p>
+                    </div>
+                    <span class="attempt-score">{{ attempt.correctAnswersCount }} / {{ attempt.totalQuestions }}</span>
+                  </div>
+                  <div class="attempt-meta">
+                    <span>Score: {{ getScorePercentage(attempt) }}%</span>
+                    <span>+{{ attempt.pointsEarned }} pts</span>
+                    <span>{{ formatDate(attempt.finishedAt) }}</span>
+                  </div>
+                  <a class="btn secondary" [routerLink]="['/attempts', attempt.attemptId]">
+                    View Result
+                  </a>
+                </div>
+              }
+            </div>
+            <div class="attempts-pagination">
+              <button class="btn secondary" (click)="prevPage()" [disabled]="attemptPage() === 1">
+                ← Prev
+              </button>
+              <span>Page {{ attemptPage() }} of {{ totalPages() }}</span>
+              <button
+                class="btn secondary"
+                (click)="nextPage()"
+                [disabled]="attemptPage() >= totalPages()"
+              >
+                Next →
+              </button>
+            </div>
+          }
+        </div>
 
         <!-- Edit Profile Modal -->
         @if (showEditModal()) {
@@ -179,6 +262,108 @@ import { AvatarUploadComponent } from '../../components/avatar-upload/avatar-upl
       justify-content: center;
     }
 
+    .attempts-card {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .attempts-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .attempts-header h3 {
+      margin: 0 0 0.25rem 0;
+    }
+
+    .attempts-subtitle {
+      color: var(--text-secondary, #6b7280);
+      margin: 0;
+    }
+
+    .attempts-filters {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .attempts-filters .input {
+      min-width: 180px;
+    }
+
+    .attempts-loading,
+    .attempts-error,
+    .attempts-empty {
+      text-align: center;
+      color: var(--text-secondary, #6b7280);
+      padding: 1.5rem;
+    }
+
+    .attempts-empty .empty-emoji {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .attempts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .attempt-item {
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 12px;
+      padding: 1rem;
+      background: var(--bg-card, white);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .attempt-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .attempt-title h4 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .attempt-title p {
+      margin: 0.25rem 0 0;
+      color: var(--text-secondary, #6b7280);
+      font-size: 0.85rem;
+    }
+
+    .attempt-score {
+      font-weight: 700;
+      color: var(--primary-color, #6366f1);
+    }
+
+    .attempt-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary, #6b7280);
+    }
+
+    .attempts-pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      color: var(--text-secondary, #6b7280);
+    }
+
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -277,9 +462,20 @@ import { AvatarUploadComponent } from '../../components/avatar-upload/avatar-upl
 export class ProfilePageComponent implements OnInit {
   private userService = inject(UserService);
   private notificationService = inject(NotificationService);
+  private attemptService = inject(AttemptService);
+  private subjectsService = inject(SubjectsService);
 
   user = signal<User | null>(null);
   stats = signal<UserStats | null>(null);
+  attempts = signal<AttemptSummary[]>([]);
+  subjects = signal<Subject[]>([]);
+  attemptsLoading = signal(false);
+  attemptsError = signal<string | null>(null);
+  attemptPage = signal(1);
+  attemptLimit = 6;
+  attemptTotal = signal(0);
+  selectedSubjectId = '';
+  selectedLevel = '';
   loading = signal(true);
   error = signal<string | null>(null);
   showEditModal = signal(false);
@@ -299,6 +495,8 @@ export class ProfilePageComponent implements OnInit {
   ngOnInit() {
     this.loadProfile();
     this.loadStats();
+    this.loadSubjects();
+    this.loadAttempts();
   }
 
   loadProfile() {
@@ -340,6 +538,60 @@ export class ProfilePageComponent implements OnInit {
         console.warn('Stats not available:', err);
       }
     });
+  }
+
+  loadSubjects() {
+    this.subjectsService.list().subscribe({
+      next: (data) => this.subjects.set(data),
+      error: () => {
+        this.subjects.set([]);
+      }
+    });
+  }
+
+  loadAttempts() {
+    this.attemptsLoading.set(true);
+    this.attemptsError.set(null);
+    this.attemptService.getMyAttempts({
+      subjectId: this.selectedSubjectId || undefined,
+      level: this.selectedLevel || undefined,
+      page: this.attemptPage(),
+      limit: this.attemptLimit,
+    }).subscribe({
+      next: (data) => {
+        this.attempts.set(data.items || []);
+        this.attemptTotal.set(data.total || 0);
+        this.attemptsLoading.set(false);
+      },
+      error: (err) => {
+        this.attemptsError.set(err.error?.message || 'Failed to load attempts');
+        this.attemptsLoading.set(false);
+      }
+    });
+  }
+
+  applyFilters() {
+    this.attemptPage.set(1);
+    this.loadAttempts();
+  }
+
+  totalPages(): number {
+    const total = this.attemptTotal();
+    return Math.max(1, Math.ceil(total / this.attemptLimit));
+  }
+
+  nextPage() {
+    if (this.attemptPage() < this.totalPages()) {
+      this.attemptPage.set(this.attemptPage() + 1);
+      this.loadAttempts();
+    }
+  }
+
+  prevPage() {
+    if (this.attemptPage() > 1) {
+      this.attemptPage.set(this.attemptPage() - 1);
+      this.loadAttempts();
+    }
   }
 
   /**
@@ -413,5 +665,15 @@ export class ProfilePageComponent implements OnInit {
       }
     });
   }
-}
 
+  getScorePercentage(attempt: AttemptSummary): number {
+    if (!attempt.totalQuestions) return 0;
+    return Math.round((attempt.correctAnswersCount / attempt.totalQuestions) * 100);
+  }
+
+  formatDate(dateString: string): string {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  }
+}

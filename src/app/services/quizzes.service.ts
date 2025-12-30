@@ -24,7 +24,9 @@ export class QuizzesService {
           id: opt.id || opt._id || '',
         })),
       })),
-      hasTaken: quiz.hasTaken, // Preserve hasTaken flag from API
+      taken: typeof quiz.taken === 'boolean' ? quiz.taken : !!quiz.hasTaken,
+      attemptId: quiz.attemptId || undefined,
+      timerMinutes: typeof quiz.timerMinutes === 'number' ? quiz.timerMinutes : undefined,
       createdAt: quiz.createdAt,
     };
   }
@@ -95,10 +97,17 @@ export class QuizzesService {
     );
   }
 
-  submit(id: string, answers: { questionId: string; selectedOptionId: string }[]): Observable<SubmitQuizResponse> {
+  submit(
+    id: string,
+    sessionId: string,
+    answers: { questionId: string; selectedOptionId: string }[]
+  ): Observable<SubmitQuizResponse> {
     // Validate inputs
     if (!id || !id.trim()) {
       throw new Error('Quiz ID is required');
+    }
+    if (!sessionId || !sessionId.trim()) {
+      throw new Error('Session ID is required');
     }
     
     if (!answers || !Array.isArray(answers) || answers.length === 0) {
@@ -116,6 +125,7 @@ export class QuizzesService {
     }
     
     const payload = {
+      sessionId: sessionId.trim(),
       answers: answers.map((answer) => ({
         questionId: answer.questionId.trim(),
         selectedOptionId: answer.selectedOptionId.trim(),
@@ -133,8 +143,12 @@ export class QuizzesService {
   /**
    * Alias for submit method (backward compatibility)
    */
-  submitQuiz(quizId: string, answers: { questionId: string; selectedOptionId: string }[]): Observable<SubmitQuizResponse> {
-    return this.submit(quizId, answers);
+  submitQuiz(
+    quizId: string,
+    sessionId: string,
+    answers: { questionId: string; selectedOptionId: string }[]
+  ): Observable<SubmitQuizResponse> {
+    return this.submit(quizId, sessionId, answers);
   }
 
   create(payload: any) {
@@ -157,8 +171,14 @@ export class QuizzesService {
    * @returns Observable of quiz attempt detail
    */
   getAttempt(attemptId: string): Observable<QuizAttemptDetail> {
-    return this.http.get<any>(`${environment.apiUrl}/quizzes/attempts/${attemptId}`).pipe(
+    return this.http.get<any>(`${environment.apiUrl}/attempts/${attemptId}`).pipe(
       map((attempt) => this.normalizeQuizAttemptDetail(attempt))
+    );
+  }
+
+  getStatus(quizId: string): Observable<{ taken: boolean; attemptId?: string }> {
+    return this.http.get<{ taken: boolean; attemptId?: string }>(
+      `${environment.apiUrl}/quizzes/${quizId}/status`
     );
   }
 }

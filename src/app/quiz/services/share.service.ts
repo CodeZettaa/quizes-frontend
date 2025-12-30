@@ -15,15 +15,19 @@ export class ShareService {
     );
   }
 
-  shareToLinkedIn(url: string, message?: string): void {
-    // LinkedIn share URL format with summary parameter
-    let shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
-    
-    // Add message content if provided (LinkedIn may use this to pre-fill)
-    if (message) {
-      shareUrl += `&summary=${encodeURIComponent(message)}`;
-    }
-    
+  shareToLinkedIn(
+    url: string,
+    options?: { title?: string; summary?: string }
+  ): void {
+    const title = options?.title || "Quiz Result";
+    const summary = options?.summary || "";
+
+    const shareUrl =
+      "https://www.linkedin.com/shareArticle?mini=true" +
+      `&url=${encodeURIComponent(url)}` +
+      `&title=${encodeURIComponent(title)}` +
+      `&summary=${encodeURIComponent(summary)}`;
+
     window.open(shareUrl, "_blank", "noopener,noreferrer");
   }
 

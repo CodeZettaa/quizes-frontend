@@ -1,11 +1,15 @@
 import { CommonModule } from "@angular/common";
 import { Component, OnInit, inject, signal } from "@angular/core";
-import { ActivatedRoute, RouterLink } from "@angular/router";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FormsModule } from "@angular/forms";
 import { AiService } from "../../services/ai.service";
 import { QuizzesService } from "../../services/quizzes.service";
-import { UserService } from "../../services/user.service";
-import { Quiz, QuizAttempt } from "../../types";
+import { AttemptService } from "../../services/attempt.service";
+import {
+  QuizSessionActiveResponse,
+  QuizSessionService,
+} from "../../services/quiz-session.service";
+import { AttemptSummary, Quiz } from "../../types";
 import { SubjectsService } from "../../services/subjects.service";
 
 @Component({
@@ -82,6 +86,29 @@ import { SubjectsService } from "../../services/subjects.service";
 
       <div class="card">
         <h3>📝 Available Quizzes</h3>
+        @if (activeSession()?.hasActiveSession && activeSession()?.quizId) {
+        <div class="active-session-card">
+          <div class="active-session-header">
+            <span class="active-session-icon">⏱️</span>
+            <div class="active-session-info">
+              <h4>Active Quiz Session</h4>
+              <p>
+                @if (activeQuiz()) {
+                  {{ activeQuiz()?.title }}
+                } @else {
+                  You have an active quiz session. Continue where you left off.
+                }
+              </p>
+            </div>
+          </div>
+          <button
+            class="btn btn-continue"
+            (click)="continueActiveQuiz()"
+          >
+            ▶️ Continue Quiz
+          </button>
+        </div>
+        }
         @if (quizzes().length === 0) {
         <div style="text-align: center; padding: 3rem 1rem;">
           <div style="font-size: 4rem; margin-bottom: 1rem;">📚</div>
@@ -93,14 +120,14 @@ import { SubjectsService } from "../../services/subjects.service";
         } @else {
         <div class="grid three">
           @for (quiz of quizzes(); track quiz.id) { @if (quiz.id) {
-          <div class="card quiz-card" [class.completed-quiz]="quiz.hasTaken">
+          <div class="card quiz-card" [class.completed-quiz]="quiz.taken">
             <div
               style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 0.75rem;"
             >
               <h4 style="margin: 0; flex: 1;">{{ quiz.title }}</h4>
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                @if (quiz.hasTaken) {
-                <span class="completed-badge" title="You've completed this quiz"
+                @if (quiz.taken) {
+                <span class="completed-badge" title="Taken"
                   >✓</span
                 >
                 }
@@ -115,14 +142,37 @@ import { SubjectsService } from "../../services/subjects.service";
                 }}</span
               >
             </div>
-            <a
+            @if (quiz.taken) {
+            <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+              <a
+                class="btn secondary"
+                [class.disabled-btn]="!getAttemptIdForQuiz(quiz)"
+                [routerLink]="getAttemptIdForQuiz(quiz) ? ['/attempts', getAttemptIdForQuiz(quiz)] : null"
+                style="width: 100%; text-align: center; display: block;"
+              >
+                👀 View Result
+              </a>
+              <button
+                class="btn"
+                type="button"
+                (click)="startQuiz(quiz)"
+                [disabled]="isStartDisabled(quiz)"
+                style="width: 100%; text-align: center; display: block;"
+              >
+                🔄 Retake Quiz
+              </button>
+            </div>
+            } @else {
+            <button
               class="btn"
-              [class.btn-secondary]="quiz.hasTaken"
-              [routerLink]="['/quiz', quiz.id]"
+              type="button"
+              (click)="startQuiz(quiz)"
+              [disabled]="isStartDisabled(quiz)"
               style="width: 100%; text-align: center; display: block;"
             >
-              @if (quiz.hasTaken) { 🔄 Retake Quiz } @else { 🚀 Start Quiz }
-            </a>
+              @if (isActiveQuiz(quiz)) { ▶️ Continue Quiz } @else { 🚀 Start Quiz }
+            </button>
+            }
           </div>
           } }
         </div>
@@ -271,25 +321,115 @@ import { SubjectsService } from "../../services/subjects.service";
       .completed-quiz:hover {
         opacity: 1;
       }
+
+      .disabled-btn {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      .session-notice {
+        margin: 0.75rem 0 1rem;
+        padding: 0.75rem 1rem;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        border-radius: 12px;
+        color: #92400e;
+        font-weight: 600;
+      }
+
+      .active-session-card {
+        margin: 0 0 1.5rem 0;
+        padding: 1.25rem;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border: 2px solid #f59e0b;
+        border-left: 5px solid #f59e0b;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .active-session-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1;
+      }
+
+      .active-session-icon {
+        font-size: 2rem;
+        flex-shrink: 0;
+      }
+
+      .active-session-info h4 {
+        margin: 0 0 0.25rem 0;
+        color: #92400e;
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+
+      .active-session-info p {
+        margin: 0;
+        color: #78350f;
+        font-size: 0.9rem;
+      }
+
+      .btn-continue {
+        background: #f59e0b;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .btn-continue:hover {
+        background: #d97706;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+      }
+
+      [data-theme="dark"] .active-session-card {
+        background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+        border-color: #f59e0b;
+      }
+
+      [data-theme="dark"] .active-session-info h4 {
+        color: #fef3c7;
+      }
+
+      [data-theme="dark"] .active-session-info p {
+        color: #fde68a;
+      }
     `,
   ],
 })
 export class QuizSelectionComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly quizzesService = inject(QuizzesService);
   private readonly aiService = inject(AiService);
   private readonly subjectsService = inject(SubjectsService);
-  private readonly userService = inject(UserService);
+  private readonly attemptService = inject(AttemptService);
+  private readonly quizSessionService = inject(QuizSessionService);
 
   subjectId = "";
   level = "";
   subjectName = "Subject";
   quizzes = signal<Quiz[]>([]);
-  attempts = signal<QuizAttempt[]>([]);
+  attempts = signal<AttemptSummary[]>([]);
   isGenerating = signal(false);
   isGeneratingRandom = signal(false);
   selectedLevelForRandom = "beginner";
   allQuizzesCompleted = signal(false);
+  activeSession = signal<QuizSessionActiveResponse | null>(null);
+  sessionNotice = signal<string | null>(null);
+  activeQuiz = signal<Quiz | null>(null);
 
   ngOnInit() {
     this.route.paramMap.subscribe((params) => {
@@ -311,6 +451,7 @@ export class QuizSelectionComponent implements OnInit {
       this.loadSubjectName();
       this.load();
       this.loadAttempts();
+      this.loadActiveSession();
     });
   }
 
@@ -338,9 +479,14 @@ export class QuizSelectionComponent implements OnInit {
   }
 
   loadAttempts() {
-    this.userService.getAttempts().subscribe({
+    this.attemptService.getMyAttempts({
+      subjectId: this.subjectId || undefined,
+      level: this.level || undefined,
+      page: 1,
+      limit: 100,
+    }).subscribe({
       next: (data) => {
-        this.attempts.set(data);
+        this.attempts.set(data.items || []);
         this.checkIfAllQuizzesCompleted();
       },
       error: (err) => {
@@ -363,10 +509,9 @@ export class QuizSelectionComponent implements OnInit {
       attempts
         .filter(
           (attempt) =>
-            attempt.quiz?.subject?.id === this.subjectId &&
-            attempt.quiz?.level === this.level
+            attempt.subject?.id === this.subjectId && attempt.level === this.level
         )
-        .map((attempt) => attempt.quiz?.id)
+        .map((attempt) => attempt.quizId)
         .filter((id): id is string => !!id)
     );
 
@@ -418,5 +563,101 @@ export class QuizSelectionComponent implements OnInit {
           this.isGeneratingRandom.set(false);
         },
       });
+  }
+
+  getAttemptIdForQuiz(quiz: Quiz): string | undefined {
+    if (quiz.attemptId) return quiz.attemptId;
+    return this.attempts().find((attempt) => attempt.quizId === quiz.id)?.attemptId;
+  }
+
+  loadActiveSession() {
+    this.quizSessionService.getActiveSession().subscribe({
+      next: (session) => {
+        this.activeSession.set(session);
+        if (session.hasActiveSession && session.quizId) {
+          // Load the active quiz details
+          this.quizzesService.get(session.quizId).subscribe({
+            next: (quiz) => {
+              this.activeQuiz.set(quiz);
+            },
+            error: () => {
+              this.activeQuiz.set(null);
+            },
+          });
+          this.sessionNotice.set(null); // Don't show text notice, show card instead
+        } else {
+          this.sessionNotice.set(null);
+          this.activeQuiz.set(null);
+        }
+      },
+      error: () => {
+        this.activeSession.set(null);
+        this.sessionNotice.set(null);
+        this.activeQuiz.set(null);
+      },
+    });
+  }
+
+  continueActiveQuiz() {
+    const activeSession = this.activeSession();
+    if (activeSession?.hasActiveSession && activeSession.sessionId && activeSession.quizId) {
+      this.router.navigate([`/quiz/${activeSession.quizId}`], {
+        queryParams: { sessionId: activeSession.sessionId },
+      });
+    }
+  }
+
+  startQuiz(quiz: Quiz) {
+    const activeSession = this.activeSession();
+    if (activeSession?.hasActiveSession && activeSession.sessionId && activeSession.quizId) {
+      if (activeSession.quizId === quiz.id) {
+        this.router.navigate([`/quiz/${activeSession.quizId}`], {
+          queryParams: { sessionId: activeSession.sessionId },
+        });
+        return;
+      }
+      this.sessionNotice.set(
+        "Finish your active quiz session before starting another."
+      );
+      return;
+    }
+
+    this.quizSessionService.start(quiz.id).subscribe({
+      next: (res) => {
+        this.router.navigate([`/quiz/${quiz.id}`], {
+          queryParams: { sessionId: res.sessionId },
+        });
+      },
+      error: (err) => {
+        if (err?.status === 409 && err?.error?.code === "QUIZ_ALREADY_TAKEN") {
+          const attemptId = err.error?.attemptId;
+          if (attemptId) {
+            this.router.navigate(["/attempts", attemptId]);
+          }
+          return;
+        }
+        if (err?.status === 409 && err?.error?.code === "ACTIVE_SESSION_EXISTS") {
+          const sessionId = err.error?.sessionId;
+          const quizId = err.error?.quizId;
+          if (sessionId && quizId) {
+            this.router.navigate([`/quiz/${quizId}`], {
+              queryParams: { sessionId },
+            });
+          }
+          return;
+        }
+        console.error("Error starting quiz:", err);
+      },
+    });
+  }
+
+  isActiveQuiz(quiz: Quiz): boolean {
+    const activeSession = this.activeSession();
+    return Boolean(activeSession?.hasActiveSession && activeSession.quizId === quiz.id);
+  }
+
+  isStartDisabled(quiz: Quiz): boolean {
+    const activeSession = this.activeSession();
+    return Boolean(activeSession?.hasActiveSession && activeSession.quizId !== quiz.id);
   }
 }

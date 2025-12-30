@@ -241,12 +241,14 @@ export class SocialCallbackPageComponent implements OnInit {
         // User loaded successfully
         this.loading.set(false);
 
-        // Redirect based on whether it's a new user
-        if (this.newUser) {
-          // New user - redirect to settings or profile to complete setup
-          this.router.navigate(["/settings"]);
+        // Check if user needs to select topics (new user or no selected subjects)
+        const needsTopicSelection = this.newUser || !user.selectedSubjects || user.selectedSubjects.length === 0;
+
+        if (needsTopicSelection) {
+          // Redirect to topic selection
+          this.router.navigate(["/auth/topics"]);
         } else {
-          // Existing user - go to dashboard
+          // Existing user with topics - go to dashboard
           this.router.navigate(["/dashboard"]);
         }
       },

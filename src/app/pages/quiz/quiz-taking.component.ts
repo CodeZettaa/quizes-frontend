@@ -1,11 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { QuizzesService } from '../../services/quizzes.service';
+import { QuizSessionService } from '../../services/quiz-session.service';
 import { NotificationService } from '../../user/services/notification.service';
 import { AuthService } from '../../services/auth.service';
 import { Quiz, SubmitQuizResponse } from '../../types';
+import { catchError, map, of } from 'rxjs';
 import { QuizShareCardComponent } from '../../quiz/components/quiz-share-card/quiz-share-card.component';
 import { QuizSharePayload } from '../../quiz/models/share.models';
 
@@ -16,6 +18,16 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
   template: `
     <div class="container">
       @if (!submitResult() && quiz()) {
+        @if (sessionWarning()) {
+          <div class="card session-warning-card">
+            {{ sessionWarning() }}
+          </div>
+        }
+        @if (tabWarning()) {
+          <div class="card tab-warning-card">
+            Don't leave the quiz page, your session may expire.
+          </div>
+        }
         <!-- Quiz Taking View -->
         <div class="card quiz-header">
           <div class="quiz-header-content">
@@ -29,6 +41,11 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
               </p>
             </div>
             <div class="progress-section">
+              @if (timeLeftSeconds() !== null) {
+                <div class="timer-badge">
+                  ⏱️ Session expires in {{ formatTime(timeLeftSeconds()!) }}
+                </div>
+              }
               <div class="progress-label">Progress</div>
               <div class="progress-value">
                 {{ getAnsweredCount() }} / {{ quiz()?.questions?.length || 0 }}
@@ -82,6 +99,9 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
           @if (submitError()) {
             <p class="error-message">{{ submitError() }}</p>
           }
+          <button class="btn secondary abandon-btn" (click)="abandonQuiz()">
+            🚪 Abandon Quiz
+          </button>
         </div>
       }
 
@@ -319,6 +339,10 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
 
     .progress-section {
       text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      align-items: flex-end;
     }
 
     .progress-label {
@@ -333,6 +357,18 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+    }
+
+    .timer-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.6rem;
+      background: rgba(245, 158, 11, 0.15);
+      color: #92400e;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.85rem;
     }
 
     /* Question Cards */
@@ -423,6 +459,10 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
       padding: 1rem 2rem;
     }
 
+    .abandon-btn {
+      margin-top: 0.75rem;
+    }
+
     .submit-warning {
       margin-top: 1rem;
       color: var(--text-secondary, #6b7280);
@@ -433,6 +473,22 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
       margin-top: 1rem;
       color: #ef4444;
       font-size: 0.9rem;
+    }
+
+    .session-warning-card {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #92400e;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .tab-warning-card {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #991b1b;
+      font-weight: 600;
+      margin-bottom: 1rem;
     }
 
     /* Results */
@@ -591,15 +647,15 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
     }
 
     .feedback-item.incorrect {
-      background: #fee2e2;
-      border-left: 4px solid #ef4444;
-      border: 1px solid #fecaca;
+      background: rgba(239, 68, 68, 0.12);
+      border-left: 4px solid #dc2626;
+      border: 1px solid rgba(239, 68, 68, 0.35);
     }
 
     .feedback-item.correct {
-      background: #d1fae5;
-      border-left: 4px solid #10b981;
-      border: 1px solid #a7f3d0;
+      background: rgba(16, 185, 129, 0.12);
+      border-left: 4px solid #059669;
+      border: 1px solid rgba(16, 185, 129, 0.35);
     }
 
     .feedback-label {
@@ -619,6 +675,14 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
       font-weight: 500;
       line-height: 1.6;
       padding: 0.25rem 0;
+    }
+
+    .feedback-item.incorrect .feedback-label {
+      color: #b91c1c;
+    }
+
+    .feedback-item.correct .feedback-label {
+      color: #047857;
     }
 
     .explanation {
@@ -839,13 +903,21 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
     }
 
     [data-theme="dark"] .feedback-item.incorrect {
-      background: #7f1d1d;
-      border-color: #991b1b;
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.45);
     }
 
     [data-theme="dark"] .feedback-item.correct {
-      background: #064e3b;
-      border-color: #047857;
+      background: rgba(16, 185, 129, 0.2);
+      border-color: rgba(16, 185, 129, 0.45);
+    }
+
+    [data-theme="dark"] .feedback-item.incorrect .feedback-label {
+      color: #fecaca;
+    }
+
+    [data-theme="dark"] .feedback-item.correct .feedback-label {
+      color: #a7f3d0;
     }
 
     [data-theme="dark"] .feedback-value {
@@ -923,9 +995,11 @@ import { QuizSharePayload } from '../../quiz/models/share.models';
     }
   `]
 })
-export class QuizTakingComponent implements OnInit {
+export class QuizTakingComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private quizzesService = inject(QuizzesService);
+  private quizSessionService = inject(QuizSessionService);
   private notificationService = inject(NotificationService);
   private authService = inject(AuthService);
 
@@ -935,22 +1009,219 @@ export class QuizTakingComponent implements OnInit {
   submitError = signal<string | null>(null);
   selected: Record<string, string> = {};
   expandedArticles = signal<Set<string>>(new Set());
+  timeLeftSeconds = signal<number | null>(null);
+  sessionId = signal<string | null>(null);
+  sessionExpiresAt = signal<Date | null>(null);
+  sessionWarning = signal<string | null>(null);
+  tabWarning = signal(false);
+  private timerHandle: number | null = null;
+  private heartbeatHandle: number | null = null;
+  private beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+    if (!this.isFinished()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  };
+  private visibilityHandler = () => {
+    if (document.hidden && !this.isFinished()) {
+      this.tabWarning.set(true);
+    } else {
+      this.tabWarning.set(false);
+    }
+  };
 
   ngOnInit() {
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+
+    this.route.queryParamMap.subscribe((params) => {
+      const sessionId = params.get('sessionId');
+      this.sessionId.set(sessionId);
+      this.stopHeartbeat();
+      if (sessionId) {
+        this.startHeartbeat(sessionId);
+        this.refreshActiveSession(sessionId);
+      } else {
+        this.sessionWarning.set('Session is missing. Please start the quiz again.');
+      }
+    });
+
     this.route.paramMap.subscribe((params) => {
       const id = params.get('quizId');
-      if (id) this.loadQuiz(id);
+      if (id) this.checkStatusAndLoad(id);
+    });
+  }
+
+  ngOnDestroy() {
+    this.clearTimer();
+    this.stopHeartbeat();
+    window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+    document.removeEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  checkStatusAndLoad(id: string) {
+    this.quizzesService.getStatus(id).subscribe({
+      next: (status) => {
+        if (status.taken) {
+          if (status.attemptId) {
+            this.router.navigate(['/attempts', status.attemptId], {
+              state: { message: 'You already took this quiz.' }
+            });
+          } else {
+            this.submitError.set('You already took this quiz.');
+            this.router.navigate(['/profile']);
+          }
+          return;
+        }
+        this.loadQuiz(id);
+      },
+      error: () => {
+        this.loadQuiz(id);
+      }
     });
   }
 
   loadQuiz(id: string) {
     this.quizzesService.get(id).subscribe({
-      next: (q) => this.quiz.set(q),
+      next: (q) => {
+        if (q.taken) {
+          if (q.attemptId) {
+            this.router.navigate(['/attempts', q.attemptId], {
+              state: { message: 'You already took this quiz.' }
+            });
+          } else {
+            this.submitError.set('You already took this quiz.');
+            this.router.navigate(['/profile']);
+          }
+          return;
+        }
+        this.quiz.set(q);
+        if (this.sessionExpiresAt()) {
+          this.startCountdown(this.sessionExpiresAt());
+        }
+      },
       error: (err) => {
         this.submitError.set('Failed to load quiz. Please try again.');
         console.error('Error loading quiz:', err);
       }
     });
+  }
+
+  private refreshActiveSession(sessionId: string) {
+    this.quizSessionService.getActiveSession().subscribe({
+      next: (session) => {
+        if (!session.hasActiveSession || session.sessionId !== sessionId) {
+          this.sessionWarning.set('Session is not active. Please restart the quiz.');
+          this.sessionExpiresAt.set(null);
+          this.startCountdown(null);
+          return;
+        }
+        const expiresAt = session.expiresAt ? new Date(session.expiresAt) : null;
+        this.sessionExpiresAt.set(expiresAt);
+        this.startCountdown(expiresAt);
+      },
+      error: () => {
+        this.sessionWarning.set(null);
+      },
+    });
+  }
+
+  private startHeartbeat(sessionId: string) {
+    this.heartbeatHandle = window.setInterval(() => {
+      this.quizSessionService.heartbeat(sessionId).subscribe({
+        next: (res) => {
+          const expiresAt = res.expiresAt ? new Date(res.expiresAt) : null;
+          this.sessionExpiresAt.set(expiresAt);
+          this.startCountdown(expiresAt);
+        },
+        error: () => {
+          this.sessionWarning.set('Session heartbeat failed. Please check your connection.');
+        },
+      });
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatHandle !== null) {
+      window.clearInterval(this.heartbeatHandle);
+      this.heartbeatHandle = null;
+    }
+  }
+
+  isFinished(): boolean {
+    return !!this.submitResult();
+  }
+
+  canDeactivate() {
+    if (this.isFinished()) {
+      return true;
+    }
+    const shouldLeave = window.confirm(
+      "You haven't finished the quiz. Leaving will abandon your attempt. Continue?"
+    );
+    if (!shouldLeave) {
+      return false;
+    }
+
+    const sessionId = this.sessionId();
+    if (!sessionId) {
+      return true;
+    }
+
+    return this.quizSessionService.abandon(sessionId).pipe(
+      map(() => {
+        this.stopHeartbeat();
+        this.clearTimer();
+        return true;
+      }),
+      catchError(() => of(true))
+    );
+  }
+
+  abandonQuiz() {
+    const sessionId = this.sessionId();
+    if (!sessionId) {
+      this.router.navigate(['/dashboard']);
+      return;
+    }
+    this.quizSessionService.abandon(sessionId).subscribe({
+      next: () => {
+        this.stopHeartbeat();
+        this.clearTimer();
+        this.router.navigate(['/dashboard']);
+      },
+      error: () => {
+        this.router.navigate(['/dashboard']);
+      },
+    });
+  }
+
+  private startCountdown(expiresAt: Date | null) {
+    this.clearTimer();
+    if (!expiresAt) {
+      this.timeLeftSeconds.set(null);
+      return;
+    }
+
+    const update = () => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((expiresAt.getTime() - now) / 1000));
+      this.timeLeftSeconds.set(diff);
+      if (diff === 0) {
+        this.clearTimer();
+        this.sessionWarning.set('Session expired. Please restart the quiz.');
+      }
+    };
+
+    update();
+    this.timerHandle = window.setInterval(update, 1000);
+  }
+
+  private clearTimer() {
+    if (this.timerHandle !== null) {
+      window.clearInterval(this.timerHandle);
+      this.timerHandle = null;
+    }
   }
 
   getAnsweredCount(): number {
@@ -1035,13 +1306,25 @@ export class QuizTakingComponent implements OnInit {
     this.selected = {};
     this.expandedArticles.set(new Set());
     this.submitError.set(null);
+    this.startCountdown(this.sessionExpiresAt());
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  formatTime(totalSeconds: number): string {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
   submit() {
     const quiz = this.quiz();
+    const sessionId = this.sessionId();
     if (!quiz) return;
+    if (!sessionId) {
+      this.submitError.set('Session is missing. Please restart the quiz.');
+      return;
+    }
     
     this.isSubmitting.set(true);
     this.submitError.set(null);
@@ -1068,10 +1351,12 @@ export class QuizTakingComponent implements OnInit {
       return;
     }
     
-    this.quizzesService.submit(quiz.id, answers).subscribe({
+    this.quizzesService.submit(quiz.id, sessionId, answers).subscribe({
       next: (res) => {
         this.submitResult.set(res);
         this.isSubmitting.set(false);
+        this.clearTimer();
+        this.stopHeartbeat();
         
         // Update user's total points in AuthService
         this.authService.updateUserPoints(res.updatedUserTotalPoints);
@@ -1100,7 +1385,23 @@ export class QuizTakingComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error submitting quiz:', err);
-        this.submitError.set(err.error?.message || 'Failed to submit quiz. Please try again.');
+        if (err?.status === 409 && err?.error?.code === 'QUIZ_ALREADY_TAKEN') {
+          const attemptId = err.error?.attemptId;
+          this.submitError.set('You already completed this quiz.');
+          if (attemptId) {
+            this.router.navigate(['/attempts', attemptId], {
+              state: { message: 'You already completed this quiz.' }
+            });
+          }
+        } else if (err?.status === 409 && err?.error?.code === 'SESSION_EXPIRED') {
+          this.submitError.set('Session expired. Please restart the quiz.');
+          this.router.navigate(['/dashboard']);
+        } else if (err?.status === 409 && err?.error?.code === 'SESSION_NOT_ACTIVE') {
+          this.submitError.set('Session is not active. Please restart the quiz.');
+          this.router.navigate(['/dashboard']);
+        } else {
+          this.submitError.set(err.error?.message || 'Failed to submit quiz. Please try again.');
+        }
         this.isSubmitting.set(false);
       }
     });

@@ -78,6 +78,14 @@ export class AuthService {
     return this.httpClient
       .get<AuthMeResponse>(`${environment.apiBaseUrl}/api/auth/me`)
       .pipe(
+        map((user) => {
+          // Map _id to id for compatibility
+          const mappedUser: User = {
+            ...user,
+            id: user._id || user.id,
+          };
+          return mappedUser;
+        }),
         tap((user) => {
           this._currentUser.set(user);
         }),
@@ -129,9 +137,20 @@ export class AuthService {
       .pipe(
         tap((res) => {
           this.setToken(res.accessToken);
-          this.setUser(res.user);
+          // Map _id to id for compatibility
+          const mappedUser: User = {
+            ...res.user,
+            id: (res.user as any)._id || res.user.id,
+          };
+          this.setUser(mappedUser);
         }),
-        map((res: AuthResponse) => res.user),
+        map((res: AuthResponse) => {
+          // Map _id to id for compatibility
+          return {
+            ...res.user,
+            id: (res.user as any)._id || res.user.id,
+          } as User;
+        }),
         catchError((error: HttpErrorResponse) => {
           console.error("Login error:", error);
           return throwError(() => error);
@@ -152,9 +171,20 @@ export class AuthService {
       .pipe(
         tap((res) => {
           this.setToken(res.accessToken);
-          this.setUser(res.user);
+          // Map _id to id for compatibility
+          const mappedUser: User = {
+            ...res.user,
+            id: (res.user as any)._id || res.user.id,
+          };
+          this.setUser(mappedUser);
         }),
-        map((res: AuthResponse) => res.user),
+        map((res: AuthResponse) => {
+          // Map _id to id for compatibility
+          return {
+            ...res.user,
+            id: (res.user as any)._id || res.user.id,
+          } as User;
+        }),
         catchError((error: HttpErrorResponse) => {
           console.error("Register error:", error);
           return throwError(() => error);
